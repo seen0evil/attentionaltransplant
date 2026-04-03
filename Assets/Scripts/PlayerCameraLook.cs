@@ -12,14 +12,14 @@ public class PlayerCameraLook : MonoBehaviour
 
     private void Awake()
     {
-        if (playerBody == null && transform.parent != null)
-        {
-            playerBody = transform.parent;
-        }
+        ResolvePlayerBody();
+        pitch = NormalizeAngle(transform.eulerAngles.x);
     }
 
     private void LateUpdate()
     {
+        ResolvePlayerBody();
+
         if (playerBody == null)
         {
             return;
@@ -31,5 +31,46 @@ public class PlayerCameraLook : MonoBehaviour
 
         transform.position = playerBody.position + playerBody.TransformVector(cameraOffset);
         transform.rotation = playerBody.rotation * Quaternion.Euler(pitch, 0f, 0f);
+    }
+
+    public void BindToPlayer(Transform target)
+    {
+        playerBody = target;
+        pitch = NormalizeAngle(transform.eulerAngles.x);
+    }
+
+    private void ResolvePlayerBody()
+    {
+        if (playerBody != null)
+        {
+            return;
+        }
+
+        if (transform.parent != null)
+        {
+            playerBody = transform.parent;
+            return;
+        }
+
+        SimplePlayerMovement movement = FindAnyObjectByType<SimplePlayerMovement>();
+        if (movement != null)
+        {
+            playerBody = movement.transform;
+        }
+    }
+
+    private static float NormalizeAngle(float angle)
+    {
+        while (angle > 180f)
+        {
+            angle -= 360f;
+        }
+
+        while (angle < -180f)
+        {
+            angle += 360f;
+        }
+
+        return angle;
     }
 }
