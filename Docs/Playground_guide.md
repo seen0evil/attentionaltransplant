@@ -57,6 +57,17 @@ The row/column ID is also written into each attention sample as `playerZoneId`.
 5. Select a generated child and confirm it has a trigger `BoxCollider` plus an `AttentionZone`.
 6. Walk through the scene and confirm `trial_001_events.jsonl` contains `zone_enter` and `zone_exit` events with subjects like `grid_r01_c02`.
 
+## Visualization Modes
+`Visualization` loads donor data and starts in the existing full-trial dwell mode. In this mode, object highlights use total dwell across the whole trial.
+
+Press `Z` to toggle current-zone dwell mode. In current-zone mode, the visualization resolves the current generated grid zone from the viewer/player position and only shows highlights for objects the donor looked at while standing in that same zone. If the viewer/player is outside the generated grid, or if the current zone has no donor dwell data, object highlights are cleared.
+
+Visualization shortcuts:
+- `H`: show or hide diagnostics
+- `R`: reload the latest local donor session
+- `I`: import a donor export JSON
+- `Z`: toggle full-trial/current-zone dwell mode
+
 ### Plain-Language Meanings
 - `semanticLayer`: The broad category for a tracked object, such as `Environment`, `Obstacle`, or `Signs`.
 - `guidanceRole`: The object's functional role, such as `DirectionalSign`, `Goal`, `Landmark`, `Distractor`, or `Structural`.
@@ -208,6 +219,7 @@ After one successful run in `Playground`, check the following:
 7. `trial_001_events.jsonl` contains both `objective_reached` and `trial_end`.
 8. `trial_001_samples.jsonl` attention samples include `playerZoneId`.
 9. `trial_001_summary.json` has a non-zero path length and at least some attended or visible targets.
+10. In `Visualization`, pressing `Z` switches between full-trial highlights and current-zone highlights.
 
 ## Troubleshooting
 
@@ -235,6 +247,12 @@ After one successful run in `Playground`, check the following:
 - Make sure `Attention Grid` has `AttentionGridZoneGenerator`.
 - Press Play before checking for generated cells; the 25 child zones are runtime objects.
 - Confirm the disabled legacy `zone1`, `zone2`, and `zone3` objects are not being re-enabled by accident.
+
+### Current-zone visualization shows no highlights
+- Make sure the loaded donor summary contains `dwellByZoneTarget`.
+- Make sure the viewer/player in `Visualization` is standing inside the generated grid bounds.
+- Try moving to another generated grid cell; some zones may have no donor dwell data.
+- Press `Z` again to return to full-trial mode and confirm the base dwell visualization still has data.
 
 ## Technical Appendix
 For orientation only, the current donor output is created by the scripts in `attentionaltransplant/Assets/Scripts/DonorDataCollection`. The most relevant runtime pieces are:

@@ -18,6 +18,11 @@ namespace AttentionalTransplants.DonorDataVisualization
 
         public DwellGlowReport Apply(DonorVisualizationDataSet dataSet)
         {
+            return Apply(dataSet.dwellByTarget);
+        }
+
+        public DwellGlowReport Apply(IReadOnlyDictionary<string, float> dwellByTarget)
+        {
             Clear();
 
             IReadOnlyList<AttentionTarget> activeTargets = AttentionTarget.ActiveTargets;
@@ -32,7 +37,7 @@ namespace AttentionalTransplants.DonorDataVisualization
             }
 
             float maxDwellSeconds = 0f;
-            foreach (float dwellSeconds in dataSet.dwellByTarget.Values)
+            foreach (float dwellSeconds in dwellByTarget.Values)
             {
                 maxDwellSeconds = Mathf.Max(maxDwellSeconds, dwellSeconds);
             }
@@ -41,7 +46,7 @@ namespace AttentionalTransplants.DonorDataVisualization
             foreach (AttentionTarget target in activeTargets)
             {
                 if (target == null ||
-                    !dataSet.dwellByTarget.TryGetValue(target.ResolvedTargetId, out float dwellSeconds) ||
+                    !dwellByTarget.TryGetValue(target.ResolvedTargetId, out float dwellSeconds) ||
                     dwellSeconds <= 0f ||
                     maxDwellSeconds <= Mathf.Epsilon)
                 {
@@ -53,7 +58,7 @@ namespace AttentionalTransplants.DonorDataVisualization
             }
 
             int unmatchedDwellCount = 0;
-            foreach (string targetId in dataSet.dwellByTarget.Keys)
+            foreach (string targetId in dwellByTarget.Keys)
             {
                 if (!targetsById.ContainsKey(targetId))
                 {

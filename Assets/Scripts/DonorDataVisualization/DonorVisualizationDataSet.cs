@@ -9,10 +9,32 @@ namespace AttentionalTransplants.DonorDataVisualization
         public string trialId;
         public string sourceLabel;
         public readonly Dictionary<string, float> dwellByTarget = new();
+        public readonly Dictionary<string, Dictionary<string, float>> dwellByZoneTarget = new();
         public readonly List<DonorPathSample> pathSamples = new();
 
         public bool HasObjectDwell => dwellByTarget.Count > 0;
+        public bool HasZoneObjectDwell => dwellByZoneTarget.Count > 0;
         public bool HasPathSamples => pathSamples.Count > 1;
+
+        public Dictionary<string, float> BuildDwellByTargetForZone(string zoneId)
+        {
+            Dictionary<string, float> filtered = new();
+            if (string.IsNullOrWhiteSpace(zoneId) ||
+                !dwellByZoneTarget.TryGetValue(zoneId.Trim(), out Dictionary<string, float> dwellByTargetForZone))
+            {
+                return filtered;
+            }
+
+            foreach (KeyValuePair<string, float> pair in dwellByTargetForZone)
+            {
+                if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value > 0f)
+                {
+                    filtered[pair.Key] = pair.Value;
+                }
+            }
+
+            return filtered;
+        }
     }
 
     public readonly struct DonorPathSample

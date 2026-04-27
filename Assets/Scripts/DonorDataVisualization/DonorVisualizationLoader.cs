@@ -195,6 +195,33 @@ namespace AttentionalTransplants.DonorDataVisualization
                 }
             }
 
+            if (summary?.dwellByZoneTarget != null)
+            {
+                foreach (ZoneTargetDurationEntry entry in summary.dwellByZoneTarget)
+                {
+                    if (entry == null ||
+                        string.IsNullOrWhiteSpace(entry.zoneId) ||
+                        string.IsNullOrWhiteSpace(entry.targetId) ||
+                        entry.durationSeconds <= 0f)
+                    {
+                        continue;
+                    }
+
+                    string zoneId = entry.zoneId.Trim();
+                    string targetId = entry.targetId.Trim();
+                    if (!dataSet.dwellByZoneTarget.TryGetValue(zoneId, out Dictionary<string, float> dwellByTargetForZone))
+                    {
+                        dwellByTargetForZone = new Dictionary<string, float>();
+                        dataSet.dwellByZoneTarget[zoneId] = dwellByTargetForZone;
+                    }
+
+                    if (!dwellByTargetForZone.TryAdd(targetId, entry.durationSeconds))
+                    {
+                        dwellByTargetForZone[targetId] += entry.durationSeconds;
+                    }
+                }
+            }
+
             ParseAttentionSamples(samplesJsonLines, dataSet.pathSamples);
 
             if (!dataSet.HasObjectDwell && !dataSet.HasPathSamples)

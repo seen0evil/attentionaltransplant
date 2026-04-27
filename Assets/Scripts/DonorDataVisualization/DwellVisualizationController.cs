@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using AttentionalTransplants.DonorDataCollection;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -22,8 +24,13 @@ namespace AttentionalTransplants.DonorDataVisualization
         private TMP_Text statusLabel;
         private TMP_Text shortcutLabel;
         private CanvasGroup panelGroup;
+        private DonorVisualizationDataSet currentDataSet;
+        private DwellVisualizationMode visualizationMode = DwellVisualizationMode.FullTrial;
+        private string activeZoneId = string.Empty;
         private bool diagnosticsVisible;
         private float hideToastAt;
+
+        public DwellVisualizationMode CurrentMode => visualizationMode;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")]
@@ -83,6 +90,16 @@ namespace AttentionalTransplants.DonorDataVisualization
                 HandleImportClicked();
             }
 
+            if (Input.GetKeyDown(KeyCode.Z))
+            {
+                ToggleVisualizationMode();
+            }
+
+            if (visualizationMode == DwellVisualizationMode.CurrentZone)
+            {
+                RefreshCurrentZoneHighlightsIfNeeded();
+            }
+
             if (!diagnosticsVisible && panelGroup != null && panelGroup.alpha > 0f && Time.unscaledTime >= hideToastAt)
             {
                 SetPanelVisible(false);
@@ -114,7 +131,11 @@ namespace AttentionalTransplants.DonorDataVisualization
 
         private void ApplyDataSet(DonorVisualizationDataSet dataSet, string loadMessage)
         {
-            DwellGlowReport glowReport = highlightApplier.Apply(dataSet);
+            currentDataSet = dataSet;
+            visualizationMode = DwellVisualizationMode.FullTrial;
+            activeZoneId = string.Empty;
+
+            DwellGlowReport glowReport = ApplyFullTrialHighlights();
             PathHeatmapReport pathReport = pathHeatmapRenderer.Render(dataSet);
 
             titleLabel.text = $"{dataSet.sessionId} / {dataSet.trialId}";
@@ -122,6 +143,115 @@ namespace AttentionalTransplants.DonorDataVisualization
                 $"{loadMessage}\n" +
                 $"Highlights: {glowReport.glowingTargetCount}/{glowReport.sceneTargetCount}; unmatched IDs: {glowReport.unmatchedDwellCount}.\n" +
                 $"Path: {pathReport.sampleCount} samples, {pathReport.renderedCellCount} slow-point markers.");
+        }
+
+        public void ToggleVisualizationMode()
+        {
+            visualizationMode = visualizationMode == DwellVisualizationMode.FullTrial
+                ? DwellVisualizationMode.CurrentZone
+                : DwellVisualizationMode.FullTrial;
+            activeZoneId = string.Empty;
+
+            if (currentDataSet == null)
+            {
+                ShowStatus($"Mode: {GetModeLabel()}. Load donor data before highlights can be shown.");
+                return;
+            }
+
+            if (visualizationMode == DwellVisualizationMode.FullTrial)
+            {
+                DwellGlowReport glowReport = ApplyFullTrialHighlights();
+                ShowStatus(
+                    $"Mode: {GetModeLabel()}.\n" +
+                    $"Highlights: {glowReport.glowingTargetCount}/{glowReport.sceneTargetCount}; unmatched IDs: {glowReport.unmatchedDwellCount}.");
+                return;
+            }
+
+            ApplyCurrentZoneHighlights(forceStatus: true);
+        }
+
+        private DwellGlowReport ApplyFullTrialHighlights()
+        {
+            return currentDataSet == null
+                ? highlightApplier.Apply(new Dictionary<string, float>())
+                : highlightApplier.Apply(currentDataSet);
+        }
+
+        private void RefreshCurrentZoneHighlightsIfNeeded()
+        {
+            if (currentDataSet == null)
+            {
+                return;
+            }
+
+            string resolvedZoneId = ResolveCurrentViewerZoneId();
+            if (string.Equals(activeZoneId, resolvedZoneId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            ApplyCurrentZoneHighlights(forceStatus: true);
+        }
+
+        private void ApplyCurrentZoneHighlights(bool forceStatus)
+        {
+            if (currentDataSet == null)
+            {
+                return;
+            }
+
+            string zoneId = ResolveCurrentViewerZoneId();
+            activeZoneId = zoneId;
+
+            if (string.IsNullOrWhiteSpace(zoneId))
+            {
+                highlightApplier.Clear();
+                if (forceStatus)
+                {
+                    ShowStatus("Mode: Current zone.\nNo current grid zone resolved; highlights cleared.");
+                }
+
+                return;
+            }
+
+            Dictionary<string, float> dwellByTargetForZone = currentDataSet.BuildDwellByTargetForZone(zoneId);
+            if (dwellByTargetForZone.Count == 0)
+            {
+                highlightApplier.Clear();
+                if (forceStatus)
+                {
+                    ShowStatus($"Mode: Current zone ({zoneId}).\nNo donor dwell data for this zone; highlights cleared.");
+                }
+
+                return;
+            }
+
+            DwellGlowReport glowReport = highlightApplier.Apply(dwellByTargetForZone);
+            if (forceStatus)
+            {
+                ShowStatus(
+                    $"Mode: Current zone ({zoneId}).\n" +
+                    $"Highlights: {glowReport.glowingTargetCount}/{glowReport.sceneTargetCount}; unmatched IDs: {glowReport.unmatchedDwellCount}.");
+            }
+        }
+
+        private static string ResolveCurrentViewerZoneId()
+        {
+            SimplePlayerMovement playerMovement = FindAnyObjectByType<SimplePlayerMovement>();
+            if (playerMovement != null &&
+                AttentionGridZoneGenerator.TryGetZoneIdForWorldPositionGlobal(playerMovement.transform.position, out string playerZoneId))
+            {
+                return playerZoneId;
+            }
+
+            Camera mainCamera = Camera.main != null ? Camera.main : FindAnyObjectByType<Camera>();
+            if (mainCamera != null &&
+                AttentionGridZoneGenerator.TryGetZoneIdForWorldPositionGlobal(mainCamera.transform.position, out string cameraZoneId))
+            {
+                return cameraZoneId;
+            }
+
+            return string.Empty;
         }
 
         private void HandleImportClicked()
@@ -174,7 +304,7 @@ namespace AttentionalTransplants.DonorDataVisualization
             panelTransform.anchorMax = new Vector2(0f, 1f);
             panelTransform.pivot = new Vector2(0f, 1f);
             panelTransform.anchoredPosition = new Vector2(14f, -14f);
-            panelTransform.sizeDelta = new Vector2(430f, 112f);
+            panelTransform.sizeDelta = new Vector2(540f, 112f);
 
             Image panelBackground = panelObject.AddComponent<Image>();
             panelBackground.color = new Color(0.03f, 0.045f, 0.065f, 0.66f);
@@ -183,14 +313,14 @@ namespace AttentionalTransplants.DonorDataVisualization
             panelGroup.interactable = false;
             panelGroup.blocksRaycasts = false;
 
-            titleLabel = CreateText(panelTransform, "Title", new Vector2(12f, -9f), new Vector2(406f, 24f), 15f, FontStyles.Bold);
+            titleLabel = CreateText(panelTransform, "Title", new Vector2(12f, -9f), new Vector2(516f, 24f), 15f, FontStyles.Bold);
             titleLabel.text = "Dwell visualization";
 
-            statusLabel = CreateText(panelTransform, "Status", new Vector2(12f, -34f), new Vector2(406f, 52f), 11.5f, FontStyles.Normal);
+            statusLabel = CreateText(panelTransform, "Status", new Vector2(12f, -34f), new Vector2(516f, 52f), 11.5f, FontStyles.Normal);
             statusLabel.text = "Ready.";
 
-            shortcutLabel = CreateText(panelTransform, "Shortcuts", new Vector2(12f, -88f), new Vector2(406f, 18f), 10.5f, FontStyles.Italic);
-            shortcutLabel.text = "H diagnostics  |  R reload latest  |  I import export";
+            shortcutLabel = CreateText(panelTransform, "Shortcuts", new Vector2(12f, -88f), new Vector2(516f, 18f), 10.5f, FontStyles.Italic);
+            shortcutLabel.text = "H diagnostics  |  R reload latest  |  I import export  |  Z zone mode";
 
             SetPanelVisible(false);
         }
@@ -258,5 +388,16 @@ namespace AttentionalTransplants.DonorDataVisualization
             panelGroup.interactable = false;
             panelGroup.blocksRaycasts = false;
         }
+
+        private string GetModeLabel()
+        {
+            return visualizationMode == DwellVisualizationMode.CurrentZone ? "Current zone" : "Full trial";
+        }
+    }
+
+    public enum DwellVisualizationMode
+    {
+        FullTrial,
+        CurrentZone
     }
 }

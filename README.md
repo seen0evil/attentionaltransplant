@@ -31,7 +31,22 @@ The older manual `zone1`, `zone2`, and `zone3` objects are left in the scenes bu
 4. Confirm there are 25 children named like `Generated Attention Zone grid_r02_c03`.
 5. Select a generated child and confirm it has a trigger `BoxCollider` and an `AttentionZone`.
 
-Attention samples now include `playerZoneId`, and trial summaries include `dwellByZoneTarget` for future grid-filtered dwell visualization work.
+Attention samples include `playerZoneId`, and trial summaries include `dwellByZoneTarget` for grid-filtered dwell visualization.
+
+## Visualization Modes
+
+Open `Assets/Scenes/Visualization.unity` to inspect donor data. The scene keeps the existing full-trial dwell visualization as the default. Press `Z` to toggle current-zone mode.
+
+- Full-trial mode shows object dwell across the whole donor trial.
+- Current-zone mode resolves the viewer/player's current generated grid cell and only shows highlights for objects the donor looked at while standing in that same cell.
+- If the viewer/player is outside the generated grid, or the current cell has no donor dwell data, object highlights are cleared.
+
+Other visualization shortcuts:
+
+- `H`: show or hide diagnostics
+- `R`: reload the latest local donor session
+- `I`: import a donor export JSON
+- `Z`: toggle full-trial/current-zone dwell mode
 
 ## Output Files
 
