@@ -175,6 +175,7 @@ namespace AttentionalTransplants.DonorDataCollection
             {
                 AddDuration(activeTrial.summaryState.dwellByTarget, currentTargetId, deltaTime);
                 AddDuration(activeTrial.summaryState.dwellBySemanticLayer, sampleLine.hitSemanticLayer, deltaTime);
+                AddZoneTargetDuration(activeTrial.summaryState.dwellByZoneTarget, sampleLine.playerZoneId, currentTargetId, deltaTime);
             }
 
             activeTrial.lastAttentionTargetId = currentTargetId;
@@ -334,6 +335,29 @@ namespace AttentionalTransplants.DonorDataCollection
 
             summaryRecord.dwellBySemanticLayer.Sort((left, right) => string.CompareOrdinal(left.key, right.key));
 
+            foreach (KeyValuePair<string, float> pair in activeTrial.summaryState.dwellByZoneTarget)
+            {
+                if (!TrySplitZoneTargetKey(pair.Key, out string zoneId, out string targetId))
+                {
+                    continue;
+                }
+
+                summaryRecord.dwellByZoneTarget.Add(new ZoneTargetDurationEntry
+                {
+                    zoneId = zoneId,
+                    targetId = targetId,
+                    durationSeconds = pair.Value
+                });
+            }
+
+            summaryRecord.dwellByZoneTarget.Sort((left, right) =>
+            {
+                int zoneComparison = string.CompareOrdinal(left.zoneId, right.zoneId);
+                return zoneComparison != 0
+                    ? zoneComparison
+                    : string.CompareOrdinal(left.targetId, right.targetId);
+            });
+
             foreach (KeyValuePair<string, float> pair in activeTrial.summaryState.firstSeenSigns)
             {
                 summaryRecord.firstSeenSigns.Add(new FirstSeenEntry
@@ -405,6 +429,37 @@ namespace AttentionalTransplants.DonorDataCollection
                 durations[key] += deltaSeconds;
             }
         }
+
+        private static void AddZoneTargetDuration(Dictionary<string, float> durations, string zoneId, string targetId, float deltaSeconds)
+        {
+            if (string.IsNullOrWhiteSpace(zoneId) || string.IsNullOrWhiteSpace(targetId) || deltaSeconds <= 0f)
+            {
+                return;
+            }
+
+            AddDuration(durations, $"{zoneId.Trim()}|{targetId.Trim()}", deltaSeconds);
+        }
+
+        private static bool TrySplitZoneTargetKey(string key, out string zoneId, out string targetId)
+        {
+            zoneId = string.Empty;
+            targetId = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return false;
+            }
+
+            int separatorIndex = key.IndexOf('|');
+            if (separatorIndex <= 0 || separatorIndex >= key.Length - 1)
+            {
+                return false;
+            }
+
+            zoneId = key[..separatorIndex];
+            targetId = key[(separatorIndex + 1)..];
+            return true;
+        }
     }
 
     [Serializable]
@@ -434,6 +489,7 @@ namespace AttentionalTransplants.DonorDataCollection
         public readonly HashSet<string> visibleTargetIds = new();
         public readonly Dictionary<string, float> dwellByTarget = new();
         public readonly Dictionary<string, float> dwellBySemanticLayer = new();
+        public readonly Dictionary<string, float> dwellByZoneTarget = new();
         public readonly Dictionary<string, float> firstSeenSigns = new();
     }
 

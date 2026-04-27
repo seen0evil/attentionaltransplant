@@ -7,14 +7,21 @@ namespace AttentionalTransplants.DonorDataCollection
     {
         [SerializeField] private string zoneId;
 
-        private void Reset()
+        public string ResolvedZoneId => GetResolvedZoneId();
+
+        public void Initialize(string zoneId)
         {
-            zoneId = string.IsNullOrWhiteSpace(zoneId) ? gameObject.name : zoneId;
+            this.zoneId = string.IsNullOrWhiteSpace(zoneId) ? gameObject.name : zoneId.Trim();
 
             if (TryGetComponent(out Collider collider))
             {
                 collider.isTrigger = true;
             }
+        }
+
+        private void Reset()
+        {
+            Initialize(zoneId);
         }
 
         private void OnTriggerEnter(Collider other)

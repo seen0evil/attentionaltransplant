@@ -83,6 +83,7 @@ namespace AttentionalTransplants.DonorDataCollection
             Vector3 currentPlayerPosition = playerRoot.position;
             float deltaTime = Mathf.Max(timestampSeconds - previousSampleTimestampSeconds, 0.0001f);
             float speed = Vector3.Distance(previousPlayerPosition, currentPlayerPosition) / deltaTime;
+            AttentionGridZoneGenerator.TryGetZoneIdForWorldPositionGlobal(currentPlayerPosition, out string playerZoneId);
 
             AttentionTarget hitTarget = null;
             RaycastHit raycastHit;
@@ -113,6 +114,7 @@ namespace AttentionalTransplants.DonorDataCollection
                 cameraRotation = attentionCamera.transform.rotation,
                 cameraForward = attentionCamera.transform.forward,
                 speedMetersPerSecond = speed,
+                playerZoneId = playerZoneId,
                 hadRelevantHit = hadRelevantHit,
                 hitTargetId = hadRelevantHit ? hitTarget.ResolvedTargetId : null,
                 hitSemanticLayer = hadRelevantHit ? hitTarget.ResolvedSemanticLayer.ToString() : string.Empty,

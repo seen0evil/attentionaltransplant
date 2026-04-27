@@ -91,6 +91,7 @@ namespace AttentionalTransplants.DonorDataCollection
         public Quaternion cameraRotation;
         public Vector3 cameraForward;
         public float speedMetersPerSecond;
+        public string playerZoneId;
         public bool hadRelevantHit;
         public string hitTargetId;
         public string hitSemanticLayer;
@@ -142,6 +143,14 @@ namespace AttentionalTransplants.DonorDataCollection
     }
 
     [Serializable]
+    public class ZoneTargetDurationEntry
+    {
+        public string zoneId;
+        public string targetId;
+        public float durationSeconds;
+    }
+
+    [Serializable]
     public class TrialSummaryRecord
     {
         public string sessionId;
@@ -158,6 +167,7 @@ namespace AttentionalTransplants.DonorDataCollection
         public List<string> visibleTargetIds = new();
         public List<DurationEntry> dwellByTarget = new();
         public List<DurationEntry> dwellBySemanticLayer = new();
+        public List<ZoneTargetDurationEntry> dwellByZoneTarget = new();
         public List<FirstSeenEntry> firstSeenSigns = new();
     }
 }
