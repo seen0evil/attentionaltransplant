@@ -1,7 +1,7 @@
 # Playground Donor Guide
 
 ## Purpose
-`Playground` is the current prototype scene for collecting donor navigation and attention data in Unity. A donor participant moves through a small 3D environment, looks around with the mouse, and tries to reach the goal zone. While they do that, the project records where they moved, what the center of the camera was pointed at, what tracked objects were visible, and key events such as entering zones, colliding with obstacles, and reaching the goal.
+`Playground` is the current prototype scene for collecting donor navigation and attention data in Unity. A donor participant moves through a small 3D environment, looks around with the mouse, and tries to reach the goal zone. While they do that, the project records where they moved, which generated grid zone they were in, what the center of the camera was pointed at, what tracked objects were visible, and key events such as entering zones, colliding with obstacles, and reaching the goal.
 
 This guide is for collaborators who want to run the prototype and understand the output files without needing to read the code.
 
@@ -19,12 +19,43 @@ This guide is for collaborators who want to run the prototype and understand the
 - The player object is the existing `Capsule`.
 - The main viewing camera is the existing `Main Camera`.
 - Runtime recording objects are auto-created when the scene starts, so you do not need to place `SessionManager`, `TrialManager`, `AttentionRecorder`, or `VisibilityRecorder` in the hierarchy by hand.
+- The `Attention Grid` object generates a `5 x 5` grid of runtime trigger zones when Play mode starts.
 - Entering the goal trigger ends the current trial and loads `attentionaltransplant/Assets/Scenes/End.unity`.
 
 ## Scene Elements That Matter
 - `AttentionTarget`: Attach this to any object you want tracked in donor data, such as signs, walls, benches, columns, or other meaningful scene elements.
 - `TrialObjective`: Attach this to the goal trigger. This is what marks the trial as complete.
-- `AttentionZone`: Attach this to trigger volumes that define areas such as `start_area`, `main_hall`, or `goal_zone`.
+- `AttentionGridZoneGenerator`: The configured runtime grid on the `Attention Grid` scene object. It creates the active zones automatically.
+- `AttentionZone`: The trigger component used by generated zone cells. The old manual `zone1`, `zone2`, and `zone3` objects remain in the scene only as disabled legacy objects.
+
+## Runtime Attention Grid
+`Playground` and `Visualization` now use the same runtime-generated grid setup. Each scene has one active root object named `Attention Grid`.
+
+Current default settings:
+- columns: `5`
+- rows: `5`
+- center: `(-20, 3.5, -15)`
+- size: `(60, 60)`
+- height: `8`
+- zone ID prefix: `grid`
+
+When Play mode starts, the generator creates 25 child trigger cells under `Attention Grid`. Their IDs are deterministic:
+
+```text
+grid_r00_c00 ... grid_r00_c04
+...
+grid_r04_c00 ... grid_r04_c04
+```
+
+The row/column ID is also written into each attention sample as `playerZoneId`.
+
+### How To Check Generated Zones
+1. Open `attentionaltransplant/Assets/Scenes/Playground.unity`.
+2. Press Play.
+3. Expand `Attention Grid` in the Hierarchy.
+4. Confirm there are 25 generated children named like `Generated Attention Zone grid_r02_c03`.
+5. Select a generated child and confirm it has a trigger `BoxCollider` plus an `AttentionZone`.
+6. Walk through the scene and confirm `trial_001_events.jsonl` contains `zone_enter` and `zone_exit` events with subjects like `grid_r01_c02`.
 
 ### Plain-Language Meanings
 - `semanticLayer`: The broad category for a tracked object, such as `Environment`, `Obstacle`, or `Signs`.
@@ -112,6 +143,7 @@ Important: this file is a mixed stream. It contains both:
 - camera rotation
 - camera forward direction
 - movement speed
+- current generated grid zone as `playerZoneId`
 - center-ray hit target, if any
 - hit point and distance
 
@@ -151,6 +183,7 @@ Typical contents include:
 - set of visible target IDs
 - dwell time by target
 - dwell time by semantic layer
+- dwell time by generated grid zone and target
 - first-seen times for signs
 
 Use this file when you want the fastest summary of what happened in the run.
@@ -170,8 +203,11 @@ After one successful run in `Playground`, check the following:
 2. A new donor session folder appears.
 3. The folder contains all six expected files.
 4. `object_catalog.json` contains the tracked scene objects you expected.
-5. `trial_001_events.jsonl` contains both `objective_reached` and `trial_end`.
-6. `trial_001_summary.json` has a non-zero path length and at least some attended or visible targets.
+5. During Play mode, `Attention Grid` contains 25 generated zone children.
+6. `trial_001_events.jsonl` contains `zone_enter` or `zone_exit` events with `grid_rXX_cXX` subject IDs.
+7. `trial_001_events.jsonl` contains both `objective_reached` and `trial_end`.
+8. `trial_001_samples.jsonl` attention samples include `playerZoneId`.
+9. `trial_001_summary.json` has a non-zero path length and at least some attended or visible targets.
 
 ## Troubleshooting
 
@@ -194,6 +230,12 @@ After one successful run in `Playground`, check the following:
 - Make sure the object was active in the scene when the trial started.
 - Make sure the object has a stable `targetId` and is not being created too late.
 
+### No generated grid zones appear
+- Make sure the scene has an active `Attention Grid` object.
+- Make sure `Attention Grid` has `AttentionGridZoneGenerator`.
+- Press Play before checking for generated cells; the 25 child zones are runtime objects.
+- Confirm the disabled legacy `zone1`, `zone2`, and `zone3` objects are not being re-enabled by accident.
+
 ## Technical Appendix
 For orientation only, the current donor output is created by the scripts in `attentionaltransplant/Assets/Scripts/DonorDataCollection`. The most relevant runtime pieces are:
 
@@ -204,5 +246,6 @@ For orientation only, the current donor output is created by the scripts in `att
 - `attentionaltransplant/Assets/Scripts/DonorDataCollection/TrialObjective.cs`
 - `attentionaltransplant/Assets/Scripts/DonorDataCollection/AttentionTarget.cs`
 - `attentionaltransplant/Assets/Scripts/DonorDataCollection/AttentionZone.cs`
+- `attentionaltransplant/Assets/Scripts/DonorDataCollection/AttentionGridZoneGenerator.cs`
 
 Collaborators do not need to edit these scripts to run the prototype, but these are the right files to inspect if technical questions come up.
