@@ -9,12 +9,20 @@ namespace AttentionalTransplants.DonorDataVisualization
     {
         [SerializeField] private Color lowDwellColor = new(0.05f, 0.9f, 1f, 1f);
         [SerializeField] private Color highDwellColor = new(1f, 0.76f, 0.08f, 1f);
+        [Tooltip("Shows the two LineRenderer circles around highlighted targets. Particles still render when disabled.")]
+        [SerializeField] private bool showDwellRings = false;
         [SerializeField] private float minRingWidth = 0.035f;
         [SerializeField] private float maxRingWidth = 0.14f;
         [SerializeField] private int ringSegments = 72;
 
         private readonly List<GameObject> spawnedHighlights = new();
         private Material highlightMaterial;
+
+        public bool ShowDwellRings
+        {
+            get => showDwellRings;
+            set => showDwellRings = value;
+        }
 
         public DwellGlowReport Apply(DonorVisualizationDataSet dataSet)
         {
@@ -95,8 +103,12 @@ namespace AttentionalTransplants.DonorDataVisualization
             root.transform.SetParent(transform, false);
             spawnedHighlights.Add(root);
 
-            CreateRing(root.transform, bounds.center, baseY, radius, ringWidth, color, "Base Ring");
-            CreateRing(root.transform, bounds.center, bounds.center.y, radius * 0.86f, ringWidth * 0.65f, color, "Mid Halo");
+            if (showDwellRings)
+            {
+                CreateRing(root.transform, bounds.center, baseY, radius, ringWidth, color, "Base Ring");
+                CreateRing(root.transform, bounds.center, bounds.center.y, radius * 0.86f, ringWidth * 0.65f, color, "Mid Halo");
+            }
+
             CreateParticles(root.transform, bounds.center, radius, bounds.size.y, color, normalizedDwell);
         }
 
