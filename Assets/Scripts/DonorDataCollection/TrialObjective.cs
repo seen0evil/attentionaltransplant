@@ -27,7 +27,13 @@ namespace AttentionalTransplants.DonorDataCollection
                 return;
             }
 
-            TrialManager.Instance?.CompleteCurrentTrial(GetResolvedObjectiveId());
+            TrialManager trialManager = TrialManager.Instance;
+            if (trialManager == null || !trialManager.IsTrialActive)
+            {
+                return;
+            }
+
+            trialManager.CompleteCurrentTrial(GetResolvedObjectiveId());
 
             if (!loadSceneOnComplete || string.IsNullOrWhiteSpace(sceneToLoadOnComplete))
             {

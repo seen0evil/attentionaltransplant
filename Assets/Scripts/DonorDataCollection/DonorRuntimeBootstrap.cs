@@ -5,6 +5,8 @@ namespace AttentionalTransplants.DonorDataCollection
 {
     public static class DonorRuntimeBootstrap
     {
+        private const string VisualizationSceneName = "Visualization";
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Initialize()
         {
@@ -16,7 +18,7 @@ namespace AttentionalTransplants.DonorDataCollection
         private static void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
             EnsureParticipantAndCameraHooks();
-            EnsureRuntimeManagers();
+            EnsureRuntimeManagers(scene);
         }
 
         private static void EnsureParticipantAndCameraHooks()
@@ -49,8 +51,13 @@ namespace AttentionalTransplants.DonorDataCollection
             }
         }
 
-        private static void EnsureRuntimeManagers()
+        private static void EnsureRuntimeManagers(Scene scene)
         {
+            if (scene.IsValid() && scene.name == VisualizationSceneName)
+            {
+                return;
+            }
+
             if (Object.FindAnyObjectByType<SessionManager>() != null)
             {
                 return;
