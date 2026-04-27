@@ -3,7 +3,6 @@ using System.IO;
 using System.Runtime.InteropServices;
 using TMPro;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -14,14 +13,17 @@ namespace AttentionalTransplants.DonorDataVisualization
         public const string VisualizationSceneName = "Visualization";
 
         private const string RuntimeObjectName = "Dwell Visualization Runtime";
+        private const float ToastVisibleSeconds = 4.5f;
 
-        [SerializeField] private DwellGlowApplier glowApplier;
+        [SerializeField] private DwellHighlightApplier highlightApplier;
         [SerializeField] private PathHeatmapRenderer pathHeatmapRenderer;
 
         private TMP_Text titleLabel;
         private TMP_Text statusLabel;
-        private Button reloadButton;
-        private Button importButton;
+        private TMP_Text shortcutLabel;
+        private CanvasGroup panelGroup;
+        private bool diagnosticsVisible;
+        private float hideToastAt;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")]
@@ -54,10 +56,7 @@ namespace AttentionalTransplants.DonorDataVisualization
 
         private void Awake()
         {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-
-            glowApplier = glowApplier != null ? glowApplier : gameObject.AddComponent<DwellGlowApplier>();
+            highlightApplier = highlightApplier != null ? highlightApplier : gameObject.AddComponent<DwellHighlightApplier>();
             pathHeatmapRenderer = pathHeatmapRenderer != null ? pathHeatmapRenderer : gameObject.AddComponent<PathHeatmapRenderer>();
             BuildInterface();
         }
@@ -65,6 +64,29 @@ namespace AttentionalTransplants.DonorDataVisualization
         private void Start()
         {
             LoadLatestLocalSession();
+        }
+
+        private void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.H))
+            {
+                ToggleDiagnostics();
+            }
+
+            if (Input.GetKeyDown(KeyCode.R))
+            {
+                LoadLatestLocalSession();
+            }
+
+            if (Input.GetKeyDown(KeyCode.I))
+            {
+                HandleImportClicked();
+            }
+
+            if (!diagnosticsVisible && panelGroup != null && panelGroup.alpha > 0f && Time.unscaledTime >= hideToastAt)
+            {
+                SetPanelVisible(false);
+            }
         }
 
         public void ReceiveImportedExportJson(string exportJson)
@@ -75,31 +97,31 @@ namespace AttentionalTransplants.DonorDataVisualization
                 return;
             }
 
-            SetStatus(message);
+            ShowStatus(message);
         }
 
         private void LoadLatestLocalSession()
         {
-            SetStatus("Loading latest local donor session...");
+            ShowStatus("Loading latest local donor session...");
             if (DonorVisualizationLoader.TryLoadLatestLocalSession(out DonorVisualizationDataSet dataSet, out string message))
             {
                 ApplyDataSet(dataSet, message);
                 return;
             }
 
-            SetStatus(message);
+            ShowStatus(message);
         }
 
         private void ApplyDataSet(DonorVisualizationDataSet dataSet, string loadMessage)
         {
-            DwellGlowReport glowReport = glowApplier.Apply(dataSet);
+            DwellGlowReport glowReport = highlightApplier.Apply(dataSet);
             PathHeatmapReport pathReport = pathHeatmapRenderer.Render(dataSet);
 
             titleLabel.text = $"{dataSet.sessionId} / {dataSet.trialId}";
-            SetStatus(
+            ShowStatus(
                 $"{loadMessage}\n" +
-                $"Objects glowing: {glowReport.glowingTargetCount}/{glowReport.sceneTargetCount}; unmatched data IDs: {glowReport.unmatchedDwellCount}.\n" +
-                $"Path heat cells: {pathReport.renderedCellCount} from {pathReport.sampleCount} attention samples.");
+                $"Highlights: {glowReport.glowingTargetCount}/{glowReport.sceneTargetCount}; unmatched IDs: {glowReport.unmatchedDwellCount}.\n" +
+                $"Path: {pathReport.sampleCount} samples, {pathReport.renderedCellCount} slow-point markers.");
         }
 
         private void HandleImportClicked()
@@ -117,7 +139,7 @@ namespace AttentionalTransplants.DonorDataVisualization
             }
             catch (Exception exception)
             {
-                SetStatus($"Import failed: {exception.Message}");
+                ShowStatus($"Import failed: {exception.Message}");
             }
 #elif UNITY_WEBGL && !UNITY_EDITOR
             RequestDonorDataUpload(RuntimeObjectName, nameof(ReceiveImportedExportJson));
@@ -129,14 +151,12 @@ namespace AttentionalTransplants.DonorDataVisualization
                 return;
             }
 
-            SetStatus("Import expects donor export JSON on the system clipboard in this build.");
+            ShowStatus("Import expects donor export JSON on the system clipboard in this build.");
 #endif
         }
 
         private void BuildInterface()
         {
-            EnsureEventSystem();
-
             Canvas canvas = FindAnyObjectByType<Canvas>();
             if (canvas == null)
             {
@@ -147,29 +167,32 @@ namespace AttentionalTransplants.DonorDataVisualization
                 canvasObject.AddComponent<GraphicRaycaster>();
             }
 
-            GameObject panelObject = new("Dwell Visualization Panel");
+            GameObject panelObject = new("Dwell Visualization HUD");
             RectTransform panelTransform = panelObject.AddComponent<RectTransform>();
             panelTransform.SetParent(canvas.transform, false);
             panelTransform.anchorMin = new Vector2(0f, 1f);
             panelTransform.anchorMax = new Vector2(0f, 1f);
             panelTransform.pivot = new Vector2(0f, 1f);
-            panelTransform.anchoredPosition = new Vector2(18f, -18f);
-            panelTransform.sizeDelta = new Vector2(560f, 190f);
+            panelTransform.anchoredPosition = new Vector2(14f, -14f);
+            panelTransform.sizeDelta = new Vector2(430f, 112f);
 
             Image panelBackground = panelObject.AddComponent<Image>();
-            panelBackground.color = new Color(0.04f, 0.06f, 0.09f, 0.84f);
+            panelBackground.color = new Color(0.03f, 0.045f, 0.065f, 0.66f);
 
-            titleLabel = CreateText(panelTransform, "Title", new Vector2(20f, -14f), new Vector2(520f, 34f), 22f, FontStyles.Bold);
+            panelGroup = panelObject.AddComponent<CanvasGroup>();
+            panelGroup.interactable = false;
+            panelGroup.blocksRaycasts = false;
+
+            titleLabel = CreateText(panelTransform, "Title", new Vector2(12f, -9f), new Vector2(406f, 24f), 15f, FontStyles.Bold);
             titleLabel.text = "Dwell visualization";
 
-            statusLabel = CreateText(panelTransform, "Status", new Vector2(20f, -54f), new Vector2(520f, 78f), 17f, FontStyles.Normal);
+            statusLabel = CreateText(panelTransform, "Status", new Vector2(12f, -34f), new Vector2(406f, 52f), 11.5f, FontStyles.Normal);
             statusLabel.text = "Ready.";
 
-            reloadButton = CreateButton(panelTransform, "Reload Latest", new Vector2(20f, -144f), new Vector2(180f, 34f), "Reload Latest");
-            reloadButton.onClick.AddListener(LoadLatestLocalSession);
+            shortcutLabel = CreateText(panelTransform, "Shortcuts", new Vector2(12f, -88f), new Vector2(406f, 18f), 10.5f, FontStyles.Italic);
+            shortcutLabel.text = "H diagnostics  |  R reload latest  |  I import export";
 
-            importButton = CreateButton(panelTransform, "Import Export", new Vector2(216f, -144f), new Vector2(180f, 34f), "Import Export");
-            importButton.onClick.AddListener(HandleImportClicked);
+            SetPanelVisible(false);
         }
 
         private static TMP_Text CreateText(
@@ -199,60 +222,41 @@ namespace AttentionalTransplants.DonorDataVisualization
             return text;
         }
 
-        private static Button CreateButton(RectTransform parent, string name, Vector2 anchoredPosition, Vector2 size, string label)
+        private void ToggleDiagnostics()
         {
-            GameObject buttonObject = new(name);
-            RectTransform buttonTransform = buttonObject.AddComponent<RectTransform>();
-            buttonTransform.SetParent(parent, false);
-            buttonTransform.anchorMin = new Vector2(0f, 1f);
-            buttonTransform.anchorMax = new Vector2(0f, 1f);
-            buttonTransform.pivot = new Vector2(0f, 1f);
-            buttonTransform.anchoredPosition = anchoredPosition;
-            buttonTransform.sizeDelta = size;
+            diagnosticsVisible = !diagnosticsVisible;
+            SetPanelVisible(diagnosticsVisible);
 
-            Image buttonImage = buttonObject.AddComponent<Image>();
-            buttonImage.color = new Color(0.13f, 0.42f, 0.72f, 0.96f);
-
-            Button button = buttonObject.AddComponent<Button>();
-            button.targetGraphic = buttonImage;
-
-            GameObject labelObject = new("Label");
-            RectTransform labelTransform = labelObject.AddComponent<RectTransform>();
-            labelTransform.SetParent(buttonTransform, false);
-            labelTransform.anchorMin = Vector2.zero;
-            labelTransform.anchorMax = Vector2.one;
-            labelTransform.offsetMin = Vector2.zero;
-            labelTransform.offsetMax = Vector2.zero;
-
-            TMP_Text labelText = labelObject.AddComponent<TextMeshProUGUI>();
-            labelText.font = TMP_Settings.defaultFontAsset;
-            labelText.fontSize = 17f;
-            labelText.fontStyle = FontStyles.Bold;
-            labelText.color = Color.white;
-            labelText.alignment = TextAlignmentOptions.Center;
-            labelText.text = label;
-
-            return button;
-        }
-
-        private static void EnsureEventSystem()
-        {
-            if (FindAnyObjectByType<EventSystem>() != null)
+            if (diagnosticsVisible)
             {
-                return;
+                hideToastAt = float.PositiveInfinity;
             }
-
-            GameObject eventSystemObject = new("EventSystem");
-            eventSystemObject.AddComponent<EventSystem>();
-            eventSystemObject.AddComponent<StandaloneInputModule>();
         }
 
-        private void SetStatus(string message)
+        private void ShowStatus(string message)
         {
             if (statusLabel != null)
             {
                 statusLabel.text = message;
             }
+
+            SetPanelVisible(true);
+            if (!diagnosticsVisible)
+            {
+                hideToastAt = Time.unscaledTime + ToastVisibleSeconds;
+            }
+        }
+
+        private void SetPanelVisible(bool isVisible)
+        {
+            if (panelGroup == null)
+            {
+                return;
+            }
+
+            panelGroup.alpha = isVisible ? 1f : 0f;
+            panelGroup.interactable = false;
+            panelGroup.blocksRaycasts = false;
         }
     }
 }
